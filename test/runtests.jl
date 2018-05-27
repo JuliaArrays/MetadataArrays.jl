@@ -11,6 +11,9 @@ end
     @test length(sv) == 4
     @test collect(sv) == parent(sv) == copy(sv)
     @test metadata(sv) == "Numbers"
+    s_view1 = view(sv, 1:3)
+    s_view2 = view(s_view1, 1:2)
+    @test metadata(s_view1) == metadata(s_view2) == "Numbers"
     sv[3] = 50
     @test all(sv .== [1, 3, 50, 4])
     @test eltype(sv) == Int

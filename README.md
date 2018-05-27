@@ -1,5 +1,8 @@
 # MetadataArrays
 
+[![Build Status](https://travis-ci.org/piever/MetadataArrays.jl.svg?branch=master)](https://travis-ci.org/piever/MetadataArrays.jl)
+[![codecov.io](http://codecov.io/github/piever/MetadataArrays.jl/coverage.svg?branch=master)](http://codecov.io/github/piever/MetadataArrays.jl?branch=master)
+
 Implementation of arrays with metadata.
 
 ## Metadata Arrays
@@ -28,6 +31,16 @@ julia> parent(s)
  "Louise"
 
 julia> metadata(s)
+Dict{String,String} with 3 entries:
+  "John"   => "Treatment"
+  "Jane"   => "Placebo"
+  "Louise" => "Placebo"
+```
+
+`metadata` is preserved when taking views:
+
+```julia
+julia> metadata(view(s, 1:2))
 Dict{String,String} with 3 entries:
   "John"   => "Treatment"
   "Jane"   => "Placebo"

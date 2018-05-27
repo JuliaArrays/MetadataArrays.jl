@@ -57,3 +57,8 @@ Base.parent(s::MetadataArray) = s.parent
 Returns metadata for `s`.
 """
 metadata(s::MetadataArray) = s.metadata
+
+metadata(s::SubArray) = metadata(parent(s))
+
+metadata(s::T) where {T<:AbstractArray} =
+    error("Type $T has no method for metadata")

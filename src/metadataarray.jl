@@ -49,6 +49,10 @@ function Base.getindex(s::MetadataArray{T, M, N}, x::Vararg{Int, N}) where {T, M
     getindex(parent(s), x...)
 end
 
+function Base.getindex(s::MetadataArray, x...)
+    _metadata_array(getindex(parent(s), x...), metadata(s))
+end
+
 Base.setindex!(s::MetadataArray, el, x::Int) = setindex!(parent(s), el, x)
 
 function Base.setindex!(s::MetadataArray{T, M, N}, el, x::Vararg{Int, N}) where {T, M, N}
@@ -70,3 +74,6 @@ metadata(s::SubArray) = metadata(parent(s))
 
 metadata(s::T) where {T<:AbstractArray} =
     error("Type $T has no method for metadata")
+
+_metadata_array(v::AbstractArray, m) = MetadataArray(v, m)
+_metadata_array(v, m) = v

@@ -77,3 +77,6 @@ metadata(s::T) where {T<:AbstractArray} =
 
 _metadata_array(v::AbstractArray, m) = MetadataArray(v, m)
 _metadata_array(v, m) = v
+
+Base.similar(A::MetadataArray, ::Type{S}, dims::Dims) where S =
+    MetadataArray(similar(parent(A), S, dims), metadata(A))

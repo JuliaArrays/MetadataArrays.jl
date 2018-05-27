@@ -1,5 +1,7 @@
 module MetadataArrays
 
-# package code goes here
+export MetadataArray, MetadataVector, metadata
+
+include("metadataarray.jl")
 
 end # module

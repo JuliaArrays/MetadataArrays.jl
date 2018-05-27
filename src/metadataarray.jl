@@ -41,15 +41,27 @@ MetadataVector(v::AbstractVector, n = ()) = MetadataArray(v, n)
 
 Base.size(s::MetadataArray) = Base.size(parent(s))
 
+Base.IndexStyle(T::Type{<:MetadataArray{}}) = IndexStyle(_parent_type(T))
+
+Base.getindex(s::MetadataArray, x::Int) = getindex(parent(s), x)
+
 function Base.getindex(s::MetadataArray{T, M, N}, x::Vararg{Int, N}) where {T, M, N}
     getindex(parent(s), x...)
 end
+
+function Base.getindex(s::MetadataArray, x...)
+    _metadata_array(getindex(parent(s), x...), metadata(s))
+end
+
+Base.setindex!(s::MetadataArray, el, x::Int) = setindex!(parent(s), el, x)
 
 function Base.setindex!(s::MetadataArray{T, M, N}, el, x::Vararg{Int, N}) where {T, M, N}
     setindex!(parent(s), el, x...)
 end
 
 Base.parent(s::MetadataArray) = s.parent
+
+_parent_type(::Type{MetadataArray{T, M, N, S}}) where {T,M,N,S} = S
 
 """
     metadata(s::MetadataArray)
@@ -62,3 +74,9 @@ metadata(s::SubArray) = metadata(parent(s))
 
 metadata(s::T) where {T<:AbstractArray} =
     error("Type $T has no method for metadata")
+
+_metadata_array(v::AbstractArray, m) = MetadataArray(v, m)
+_metadata_array(v, m) = v
+
+Base.similar(A::MetadataArray, ::Type{S}, dims::Dims) where S =
+    MetadataArray(similar(parent(A), S, dims), metadata(A))

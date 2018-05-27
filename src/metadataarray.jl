@@ -37,7 +37,7 @@ Shorthand for `MetadataArray{T, M, 1, S}`.
 """
 const MetadataVector{T, M, S<:AbstractArray} = MetadataArray{T, M, 1, S}
 
-MetadataVector(v::AbstractVector, n = (0,); default = missing) = MetadataArray(v, n; default = default)
+MetadataVector(v::AbstractVector, n = ()) = MetadataArray(v, n)
 
 Base.size(s::MetadataArray) = Base.size(parent(s))
 

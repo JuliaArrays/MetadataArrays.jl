@@ -26,7 +26,7 @@ end
     @test all(sv .== [1 2; 3 4; 5 50])
     @test parent(sv[1:2, 1]) == parent(sv)[1:2, 1]
     @test metadata(sv[1:2, 1]) == metadata(sv)
-    @test_throws ErrorException metadata(rand(2))
+    @test metadata(rand(2)) === nothing
     @test eltype(sv) == Int
 
     s = MetadataArray(rand(4), "test")

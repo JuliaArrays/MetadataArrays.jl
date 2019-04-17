@@ -70,8 +70,7 @@ metadata(s::MetadataArray) = s.metadata
 
 metadata(s::SubArray) = metadata(parent(s))
 
-metadata(s::T) where {T<:AbstractArray} =
-    error("Type $T has no method for metadata")
+metadata(s::T) where {T<:AbstractArray} = nothing
 
 Base.similar(A::MetadataArray, ::Type{S}, dims::Dims) where S =
     MetadataArray(similar(parent(A), S, dims), metadata(A))

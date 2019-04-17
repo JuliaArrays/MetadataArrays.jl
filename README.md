@@ -20,7 +20,7 @@ julia> s = MetadataArray(v, Dict("John" => "Treatment", "Louise" => "Placebo", "
  "Louise"
 ```
 
-The parent `Array` as well as the metadata can be recovered with `parent` and `shifts` respectively.
+The parent `AbstractArray` as well as the metadata can be recovered with `parent` and `metadata` respectively.
 
 ```julia
 julia> parent(s)
@@ -47,21 +47,4 @@ Dict{String,String} with 3 entries:
   "Louise" => "Placebo"
 ```
 
-`s` can be used as a regular `AbstractArray` (meaning all operations that work on `AbstractArray` should work on a `MetadataArray` out of the box:
-
-```julia
-julia> s[1] = "Jack";
-
-julia> s[3]
-"Jane"
-
-julia> s
-4-element MetadataArrays.MetadataArray{String,Dict{String,String},1,Array{String,1}}:
- "Jack"  
- "John"  
- "Jane"  
- "Louise"
-
-julia> join(s)
- "JackJohnJaneLouise"
-```
+`s` can be used as a regular `AbstractArray` (meaning all operations that work on `AbstractArray` should work on a `MetadataArray` out of the box.

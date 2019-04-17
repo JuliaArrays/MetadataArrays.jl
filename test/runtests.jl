@@ -26,5 +26,22 @@ end
     @test all(sv .== [1 2; 3 4; 5 50])
     @test parent(sv[1:2, 1]) == parent(sv)[1:2, 1]
     @test metadata(sv[1:2, 1]) == metadata(sv)
+    @test metadata(rand(2)) === nothing
     @test eltype(sv) == Int
+
+    s = MetadataArray(rand(4), "test")
+    sr = reshape(s, 2, 2)
+    @test parent(sr) == reshape(parent(s), 2, 2)
+    @test metadata(sr) == metadata(s)
+    @test axes(sr) == (Base.OneTo(2), Base.OneTo(2))
+    s2 = similar(s, (2, 3))
+    @test size(s2) == (2, 3)
+    @test metadata(s2) == metadata(s)
+
+    x1 = rand(4, 4)
+    m1 = MetadataArray(x1, "something")
+    @test IndexStyle(m1) == IndexLinear()
+    x2 = view(x1, 1:2, 1:2)
+    m2 = MetadataArray(x2, "something")
+    @test IndexStyle(m2) == IndexCartesian()
 end

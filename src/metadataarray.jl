@@ -41,6 +41,8 @@ MetadataVector(v::AbstractVector, n = ()) = MetadataArray(v, n)
 
 Base.size(s::MetadataArray) = Base.size(parent(s))
 
+Base.axes(s::MetadataArray) = Base.axes(parent(s))
+
 Base.IndexStyle(T::Type{<:MetadataArray}) = IndexStyle(_parent_type(T))
 
 Base.@propagate_inbounds function Base.getindex(s::MetadataArray, x::Int...)

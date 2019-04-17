@@ -32,4 +32,5 @@ end
     sr = reshape(s, 2, 2)
     @test parent(sr) == reshape(parent(s), 2, 2)
     @test metadata(sr) == metadata(s)
+    @test axes(sr) == (Base.OneTo(2), Base.OneTo(2))
 end

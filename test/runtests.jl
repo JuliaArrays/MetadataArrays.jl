@@ -27,4 +27,9 @@ end
     @test parent(sv[1:2, 1]) == parent(sv)[1:2, 1]
     @test metadata(sv[1:2, 1]) == metadata(sv)
     @test eltype(sv) == Int
+
+    s = MetadataArray(rand(4), "test")
+    sr = reshape(s, 2, 2)
+    @test parent(sr) == reshape(parent(s), 2, 2)
+    @test metadata(sr) == metadata(s)
 end

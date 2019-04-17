@@ -34,6 +34,9 @@ end
     @test parent(sr) == reshape(parent(s), 2, 2)
     @test metadata(sr) == metadata(s)
     @test axes(sr) == (Base.OneTo(2), Base.OneTo(2))
+    s2 = similar(s, (2, 3))
+    @test size(s2) == (2, 3)
+    @test metadata(s2) == metadata(s)
 
     x1 = rand(4, 4)
     m1 = MetadataArray(x1, "something")

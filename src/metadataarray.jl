@@ -22,8 +22,8 @@ Dict{String,String} with 3 entries:
   "Louise" => "Placebo"
 ```
 """
-struct MetadataArray{T, N, M, S<:AbstractArray} <: AbstractArray{T, N}
-    parent::S
+struct MetadataArray{T, N, M, P<:AbstractArray} <: AbstractArray{T, N}
+    parent::P
     metadata::M
 end
 
@@ -39,38 +39,63 @@ const MetadataVector{T, M, S<:AbstractArray} = MetadataArray{T, 1, M, S}
 
 MetadataVector(v::AbstractVector, n = ()) = MetadataArray(v, n)
 
-Base.size(s::MetadataArray) = Base.size(parent(s))
+Base.size(mda::MetadataArray) = Base.size(getfield(mda, :parent))
 
-Base.axes(s::MetadataArray) = Base.axes(parent(s))
+Base.axes(mda::MetadataArray) = Base.axes(getfield(mda, :parent))
 
-Base.IndexStyle(T::Type{<:MetadataArray}) = IndexStyle(_parent_type(T))
+Base.IndexStyle(@nospecialize T::Type{<:MetadataArray}) = IndexStyle(fieldtype(T, :parent))
 
-Base.@propagate_inbounds function Base.getindex(s::MetadataArray, x::Int...)
-    @boundscheck checkbounds(parent(s), x...)
-    @inbounds ret = getindex(parent(s), x...)
+Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, x::Int...)
+    @boundscheck checkbounds(parent(mda), x...)
+    @inbounds ret = getindex(parent(mda), x...)
     return ret
 end
 
-Base.@propagate_inbounds function Base.setindex!(s::MetadataArray, val, x::Int...)
-    @boundscheck checkbounds(parent(s), x...)
-    @inbounds parent(s)[x...] = val
+Base.@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, x::Int...)
+    @boundscheck checkbounds(parent(mda), x...)
+    @inbounds parent(mda)[x...] = val
     return val
 end
 
-Base.parent(s::MetadataArray) = s.parent
+Base.parent(@nospecialize mda::MetadataArray) = getfield(mda, :parent)
 
-_parent_type(::Type{MetadataArray{T, M, N, S}}) where {T,M,N,S} = S
+_parent_type(::Type{MetadataArray{T, M, N, P}}) where {T,M,N,P} = P
 
 """
     metadata(s::MetadataArray)
 
 Returns metadata for `s`.
 """
-metadata(s::MetadataArray) = s.metadata
+metadata(@nospecialize mda::MetadataArray) = getfield(mda, :metadata)
 
-metadata(s::SubArray) = metadata(parent(s))
+metadata(mda::SubArray) = metadata(parent(mda))
 
 metadata(s::T) where {T<:AbstractArray} = nothing
+
+# property methods
+function Base.propertynames(mda::MetadataArray)
+    _merge_propertynames(metakeys(mda), propertynames(getfield(mda, :parent)))
+end
+@inline function Base.getproperty(mda::MetadataArray, k::Symbol)
+    prop = getmeta(mda, k, mdna)
+    prop === mdna ? getproperty(getfield(mda, :parent), k) : prop
+end
+@inline function Base.getproperty(mda::MetadataArray, k::String)
+    prop = getmeta(mda, k, mdna)
+    prop === mdna ? getproperty(getfield(mda, :parent), k) : prop
+end
+@inline function Base.setproperty!(mda::MetadataArray, k::Symbol, v)
+    _setmeta!(getfield(mda, :metadata), k, v)
+end
+@inline function Base.setproperty!(mda::MetadataArray, k::String, v)
+    _setmeta!(getfield(mda, :metadata), k, v)
+end
+function Base.hasproperty(mda::MetadataArray, key::Symbol)
+    hasmetakey(mda, key) || hasproperty(getfield(mda, :parent), key)
+end
+function Base.hasproperty(mda::MetadataArray, key::String)
+    hasmetakey(mda, key) || hasproperty(getfield(mda, :parent), key)
+end
 
 Base.similar(A::MetadataArray, ::Type{S}, dims::Dims) where S =
     MetadataArray(similar(parent(A), S, dims), metadata(A))

@@ -45,3 +45,23 @@ end
     m2 = MetadataArray(x2, "something")
     @test IndexStyle(m2) == IndexCartesian()
 end
+
+@testset "properties" begin
+    a = ones(4, 4);
+    md1 = (m1 = 1, m2 = [1, 2]);
+    mda1 = MetadataArray(a, md1)
+    @test mda1.m1 == md1.m1
+    @test mda1."m1" == md1.m1
+    @test propertynames(mda1) == propertynames(md1)
+    @test hasproperty(mda1, :m1) == hasproperty(md1, :m1)
+    @test hasproperty(mda1, "m1") == hasproperty(md1, :m1)
+
+    md2 = Dict("m1" => 1, "m2" => [1, 2]);
+    mda2 = MetadataArray(a, md2)
+
+    @test mda2.m1 == md2["m1"]
+    @test mda2."m1" == md2["m1"]
+    @test propertynames(mda2) == keys(md2)
+    @test hasproperty(mda2, :m1) == haskey(md2, "m1")
+    @test hasproperty(mda2, "m1") == haskey(md2, "m1")
+end

@@ -1,7 +1,7 @@
 name = "MetadataArrays"
 uuid = "49441bc9-da82-574f-b07c-a0d10dd4ac13"
 authors = ["Pietro Vertechi <pietro.vertechi@neuro.fchampalimaud.org>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [compat]
 julia = "1.0"

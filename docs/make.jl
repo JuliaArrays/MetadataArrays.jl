@@ -11,7 +11,6 @@ makedocs(
     ),
     pages = Any[
         "Introduction" => "index.md",
-        "API" => "api.md",
     ],
     strict = true,
 )

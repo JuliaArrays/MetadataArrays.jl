@@ -1,7 +1,9 @@
 # MetadataArrays
 
-[![Build Status](https://travis-ci.org/piever/MetadataArrays.jl.svg?branch=master)](https://travis-ci.org/piever/MetadataArrays.jl)
-[![codecov.io](http://codecov.io/github/piever/MetadataArrays.jl/coverage.svg?branch=master)](http://codecov.io/github/piever/MetadataArrays.jl?branch=master)
+[![Build Status](https://travis-ci.org/JuliaArrays/MetadataArrays.jl.svg?branch=master)](https://travis-ci.org/JuliaArrays/MetadataArrays.jl)
+[![codecov.io](http://codecov.io/github/JuliaArrays/MetadataArrays.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaArrays/MetadataArrays.jl?branch=master)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaArrays.github.io/MetadataArrays.jl/stable/)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://JuliaArrays.github.io/MetadataArrays.jl/dev/)
 
 Implementation of arrays with metadata.
 

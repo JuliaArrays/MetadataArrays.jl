@@ -1,99 +1,107 @@
 module MetadataArrays
 
+import ArrayInterfaceCore: parent_type, is_forwarding_wrapper
+import DataAPI: metadata, metadatakeys #, metadatasupport
+
 export MetadataArray, MetadataVector, metadata
 
-struct MetadataNotAvailable end
-const mdna = MetadataNotAvailable()
+include("interface.jl")
 
-include("metadataarray.jl")
+@nospecialize
 
-# metadata_type(data)
-metadata_type(data) = metadata_type(typeof(data))
-metadata_type(@nospecialize T::Type{<:MetadataArray}) = fieldtype(T, :metadata)
+struct MetadataArray{T, N, P<:AbstractArray,M<:NamedTuple} <: AbstractArray{T, N}
+    parent::P
+    metadata::M
 
-# is_symbol_metadata_keytype
-function is_symbol_metadata_keytype(@nospecialize data)
-    !(metadata_type(data) <: AbstractDict{String})
+    global _MDArray(p, md) = new{eltype(p),ndims(p),typeof(p),typeof(md)}(p, md)
 end
 
-# is_property_metadata
-is_property_metadata(@nospecialize data) = !(metadata_type(data) <: AbstractDict)
-
-# to_metadata_keytype
-@inline function to_metakeytype(@nospecialize(data), key::Symbol)
-    is_symbol_metadata_keytype(data) ? key : String(key)
-end
-@inline function to_metakeytype(@nospecialize(data), key::AbstractString)
-    is_symbol_metadata_keytype(data) ? Symbol(key) : key
+function MetadataArray(p::AbstractArray, md::NamedTuple)
+    check_metadata(p, md)
+    _MDArray(p, m)
 end
 
-# metakeys(data)
-@inline function metakeys(data)
-    is_property_metadata(data) ? propertynames(metadata(data)) : keys(metadata(data))
+"""
+    MetadataMatrix
+
+Shorthand for `MetadataVector{T,P<:AbstractArray{T,2},M}`.
+
+See also: [`MetadataArray`](@ref), [`MetadataMatrix`](@ref)
+"""
+const MetadataMatrix{T,P<:AbstractArray{T,2},M} = MetadataArray{T, 2, P, M}
+MetadataMatrix(m::AbstractMatrix, md) = MetadataArray(m, md)
+
+"""
+    MetadataVector
+
+Shorthand for `MetadataVector{T,P<:AbstractArray{T,1},M}`.
+
+See also: [`MetadataArray`](@ref), [`MetadataMatrix`](@ref)
+"""
+const MetadataVector{T,P<:AbstractArray{T,1},M} = MetadataArray{T, 1, P, M}
+MetadataVector(v::AbstractVector, md) = MetadataArray(v, n)
+
+Base.parent(mda::MetadataArray) = getfield(mda, :parent)
+parent_type(T::Type{<:MetadataArray}) = fieldtype(T, :parent)
+
+is_forwarding_wrapper(T::Type{<:MetadataArray}) = true
+
+#region property methods
+Base.propertynames(mda::MetadataArray) = keys(metadata(mda))
+Base.getproperty(mda::MetadataArray, s::Symbol) = getproperty(metadata(mda), s)
+Base.setproperty!(mda::MetadataArray, s::Symbol, v) = setproperty!(metadata(mda), s, v)
+Base.hasproperty(mda::MetadataArray, s::Symbol) = in(s, keys(mda))
+
+Base.setproperty!(mda::MetadataArray, s::String, v) = setproperty!(mda, Symbol(s), v)
+Base.getproperty(mda::MetadataArray, s::String) = getproperty(mda, Symbol(s))
+Base.hasproperty(mda::MetadataArray, s::String) = hasproperty(mda, Symbol(s))
+#endregion
+
+#region metadata methods
+"""
+    metadata(mda::MetadataArray)
+
+Returns the raw metadata bound in `mda`. Currently, there are no guarantees that this will
+return a collection whose values are correspond to the return values produced by
+`metadata(mda, key)`.
+"""
+metadata(mda::MetadataArray) = getfield(mda, :metadata)
+function metadata(mda::MetadataArray, key::Symbol; style::Bool=false)
+    md = getproperty(mda, key)
+    style ? (md, MetadataStyle(md)) : md
+end
+function metadata(mda::MetadataArray, key::Symbol, default; style::Bool=false)
+    md = get(metadata(mda), key, default)
+    style ? (md, MetadataStyle(md)) : md
+end
+metadatasupport(T::Type{<:MetadataArray}) = (read=true, write=false)
+#endregion
+
+Base.size(mda::MetadataArray) = Base.size(getfield(mda, :parent))
+
+Base.axes(mda::MetadataArray) = Base.axes(getfield(mda, :parent))
+
+Base.IndexStyle(T::Type{<:MetadataArray}) = IndexStyle(fieldtype(T, :parent))
+
+@specialize
+
+Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, x::Int...)
+    @boundscheck checkbounds(parent(mda), x...)
+    @inbounds ret = getindex(parent(mda), x...)
+    return ret
 end
 
-# hasmetakey(data, key)
-@inline hasmetakey(data, key) = to_metakeytype(data, key) in metakeys(data)
-
-# metadata(data, key)
-function metadata(data, key::Symbol)
-    md = metadata(data)
-    if md isa AbstractDict
-       return md[keytype(md) <: Symbol ? key : String(key)]
-    else
-        return getproperty(md, key)
-    end
-end
-function metadata(data, key::AbstractString)
-    md = metadata(data)
-    if md isa AbstractDict
-        return md[keytype(md) <: Symbol ? Symbol(key) : key]
-    else
-        return getproperty(md, Symbol(key))
-    end
+Base.@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, x::Int...)
+    @boundscheck checkbounds(parent(mda), x...)
+    @inbounds parent(mda)[x...] = val
+    return val
 end
 
-# metadata!(data, key)
-function metadata!(data, key::Symbol, v)
-    md = metadata(data)
-    if md isa AbstractDict
-        return setindex!(md, v, keytype(md) <: Symbol ? key : String(key))
-    else
-        return setproperty!(md, key, v)
-    end
-end
-function metadata!(data, key::AbstractString, v)
-    md = metadata(data)
-    if md isa AbstractDict
-        return setindex!(md, v, keytype(md) <: Symbol ? Symbol(key) : key)
-    else
-        return setproperty!(md, Symbol(key), v)
-    end
-end
+Base.similar(A::MetadataArray, ::Type{S}, dims::Dims) where S =
+    MetadataArray(similar(parent(A), S, dims), metadata(A))
 
-
-# getmeta
-function getmeta(data, key::Symbol, default)
-    md = metadata(data)
-    if md isa AbstractDict
-        return get(md, keytype(md) <: Symbol ? key : String(key), default)
-    else
-        return in(key, propertynames(md)) ? getproperty(md, key) : default
-    end
+function Base.reshape(s::MetadataArray, d::Dims)
+    MetadataArray(reshape(parent(s), d), metadata(s))
 end
-function getmeta(data, key::AbstractString, default)
-    md = metadata(data)
-    if md isa AbstractDict
-        return get(md, keytype(md) <: Symbol ? Symbol(key) : key, default)
-    else
-        key2 = Symbol(key)
-        return in(key2, propertynames(md)) ? getproperty(md, key2) : default
-    end
-end
-
-# _merge_propertynames
-_merge_propertynames(x::Tuple{Vararg{Symbol}}, y::Tuple{Symbol,Vararg{Symbol}}) = (x..., y...)
-_merge_propertynames(@nospecialize(x), ::Tuple{}) = x
-_merge_propertynames(@nospecialize(x), @nospecialize(y)) = [x..., y...]
 
 end # module

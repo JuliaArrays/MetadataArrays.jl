@@ -4,12 +4,7 @@ module MetadataInterface
 import ArrayInterfaceCore: parent_type, is_forwarding_wrapper, can_setindex,
     can_change_size, @assume_effects
 using DataAPI
-import DataAPI: metadata, metadatakeys
-@static if isdefined(DataAPI, :metadatasupport)
-    import DataAPI: metadatasupport
-else
-    metadatasupport(::Type) = (read=false, write=false)
-end
+import DataAPI: metadata, metadatakeys, metadatasupport
 
 @assume_effects :total function find_all_true(t::Tuple{Vararg{Bool}})
     out = Int[]
@@ -123,7 +118,7 @@ combine_styles(x, y) = _combine_styles(combine_styles(x), combine_styles(y))
 @inline function combine_styles(x, y, zs...)
     _combine_styles(combine_styles(x), combine_styles(y, zs...))
 end
-# `_combine_styles(x, y)` ensures we 
+# `_combine_styles(x, y)` ensures we
 function _combine_styles(x::MetadataStyle, y::MetadataStyle)
     _catch_unkown(MetadataStyle(x, y), MetadataStyle(y, x), x, y)
 end
@@ -333,4 +328,3 @@ function _combine(f::Function, ::MetadataNamed{syms}, ctxs::Tuple) where {syms}
 end
 
 end
-

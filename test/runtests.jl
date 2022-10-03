@@ -38,6 +38,9 @@ mda = MetadataArray(a, md);
 @test getproperty(mda, :m1) == 1
 @test metadata(mda, "m1") == 1
 @test metadata(mda, :m1) == 1
+@test metadata(mda, "m10", 10) == 10
+@test metadata(mda, :m10, 10) == 10
+@test MetadataArrays.metadatasupport(typeof(mda)).read
 @test hasproperty(mda, "annotation")
 @test hasproperty(mda, :annotation)
 @test metadatakeys(mda) == propertynames(mda) == keys(md)
@@ -49,3 +52,6 @@ mda = MetadataArray(a, md);
 @test metadata(@inferred(Base.adjoint(mda)), :annotation) == md.annotation
 @test metadata(@inferred(Base.adjoint(mda[:, 1])), :annotation) == md.annotation
 @test metadata(@inferred(permutedims(mda, (2, 1))), :annotation) == md.annotation
+
+mda[1] = 100
+@test mda[1] == 100

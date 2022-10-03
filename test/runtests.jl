@@ -3,7 +3,7 @@ using MetadataArrays
 using MetadataArrays:
     MetadataNode,
     MetadataStyle,
-    MetadataPersistent,
+    PersistentStyle,
     propagate_metadata,
     permutedims_metadata
 
@@ -15,7 +15,7 @@ struct PersistantAnnotation{A}
     annotation::A
 end
 
-MetadataArrays.MetadataStyle(@nospecialize(T::Type{<:PersistantAnnotation})) = MetadataArrays.MetadataPersistent()
+MetadataArrays.MetadataStyle(@nospecialize(T::Type{<:PersistantAnnotation})) = MetadataArrays.PersistentStyle()
 
 a = [1 2; 3 4; 5 4]
 md = (m1 =1, annotation=PersistantAnnotation("hello world"));
@@ -57,4 +57,4 @@ mda = MetadataArray(a, md);
 mda[1] = 100
 @test mda[1] == 100
 
-@test isa(MetadataStyle(typeof(MetadataArray(a, (m1 =1, MetadataStyle=MetadataPersistent())))), MetadataPersistent)
+@test isa(MetadataStyle(typeof(MetadataArray(a, (m1 =1, MetadataStyle=PersistentStyle())))), PersistentStyle)

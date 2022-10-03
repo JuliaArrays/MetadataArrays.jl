@@ -16,9 +16,9 @@ include("MetadataInterface.jl")
 using .MetadataInterface
 import .MetadataInterface:
     MetadataStyle,
-    MetadataDefault,
-    MetadataPersistent,
-    MetadataNamed,
+    DefaultStyle,
+    PersistentStyle,
+    NamedStyle,
     MetadataNode,
     UndefValue,
     # methods
@@ -72,7 +72,7 @@ Dict{String, String} with 3 entries:
 ```
 """
 function MetadataArray(p::AbstractArray, mdn::NamedTuple)
-    check_metadata(MetadataNamed{keys(mdn)}(), p, mdn)
+    check_metadata(NamedStyle{keys(mdn)}(), p, mdn)
     _MDArray(p, mdn)
 end
 MetadataArray(p::AbstractArray, md) = MetadataArray(p, NamedTuple(md))
@@ -188,9 +188,9 @@ end
     M = fieldtype(T, :metadata)
     if hasfield(M, :MetadataStyle)
         S = fieldtype(M, :MetadataStyle)
-        return S <: MetadataStyle ? S() : MetadataDefault()
+        return S <: MetadataStyle ? S() : DefaultStyle()
     else
-        return MetadataDefault()
+        return DefaultStyle()
     end
 end
 

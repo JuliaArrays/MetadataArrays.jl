@@ -2,16 +2,7 @@ module MetadataArrays
 
 import ArrayInterfaceCore: parent_type, is_forwarding_wrapper, can_setindex,
     can_change_size, @assume_effects
-using Base: Fix2, @propagate_inbounds
-using Base.Broadcast: Broadcasted, BroadcastStyle, AbstractArrayStyle, DefaultArrayStyle,
-    Unknown, Style
-using DataAPI
-import DataAPI: metadata, metadatakeys #, metadatasupport
-@static if isdefined(DataAPI, :metadatasupport)
-    import DataAPI: metadatasupport
-else
-    metadatasupport(::Type) = (read=false, write=false)
-end
+using Base.Broadcast: BroadcastStyle
 using LinearAlgebra
 
 export
@@ -21,20 +12,28 @@ export
     metadata,
     metadatakeys
 
-
-"""
-    UndefValue
-
-Internal type used to indicate the absence of a value without throwing an error.
-
-!!! warning
-    This is not part of the public API and may change without notice.
-"""
-struct UndefValue end
-const undefvalue = UndefValue()
-
-include("styles.jl")
-include("interface.jl")
+include("MetadataInterface.jl")
+using .MetadataInterface
+import .MetadataInterface:
+    MetadataStyle,
+    MetadataDefault,
+    MetadataPersistent,
+    MetadataNamed,
+    MetadataNode,
+    UndefValue,
+    # methods
+    check_metadata,
+    combine_metadata,
+    delete_metadata,
+    metadata,
+    metadatakeys,
+    metadatasupport,
+    permutedims_metadata,
+    propagate,
+    propagate_metadata,
+    trymeta,
+    trynames,
+    undefvalue
 
 @nospecialize
 
@@ -106,13 +105,13 @@ function Base.convert(T::Type{<:MetadataArray}, mda::MetadataArray)
     else
         MetadataArray(
             convert(parent_type(T), parent(mda)),
-            convert(fieldtype(T, :metadata), _meta(mda))
+            convert(fieldtype(T, :metadata), metadata(mda))
         )
     end
 end
 
 _meta(mda::MetadataArray) = getfield(mda, :metadata)
-_propagate(mda::MetadataArray) = propagate_metadata(MetadataNamed(), _meta(mda))
+_propagate(mda::MetadataArray) = propagate(propagate_metadata, _meta(mda))
 
 Base.parent(mda::MetadataArray) = getfield(mda, :parent)
 parent_type(T::Type{<:MetadataArray}) = fieldtype(T, :parent)
@@ -164,36 +163,33 @@ function metadata(mda::MetadataArray, key::AbstractString; style::Bool=false)
 end
 function metadata(mda::MetadataArray, key::Symbol; style::Bool=false)
     md = getproperty(mda, key)
-    style ? (md, MetadataStyle(md)) : md
+    style ? (md, MetadataStyle(typeof(md))) : md
 end
 function metadata(mda::MetadataArray, key::AbstractString, default; style::Bool=false)
     metadata(mda, Symbol(key), default; style=style)
 end
 function metadata(mda::MetadataArray, key::Symbol, default; style::Bool=false)
     md = get(_meta(mda), key, default)
-    style ? (md, MetadataStyle(md)) : md
+    style ? (md, MetadataStyle(typeof(md))) : md
 end
 metadatakeys(mda::MetadataArray) = keys(_meta(mda))
 metadatasupport(T::Type{<:MetadataArray}) = (read=true, write=false)
 
 delete_metadata(mda::MetadataArray) = parent(mda)
 
-# like `metadatakeys` but ensures we get a tuple back
-_getmetakeys(x) = ()
-_getmetakeys(mdn::MetadataNode) = keys(mdn)
-_getmetakeys(mda::MetadataArray) = keys(getfield(mda, :metadata))
-
-_getmeta(x, ::Symbol, default) = default
-_getmeta(mdn::MetadataNode, k::Symbol, d) = get(getfield(mdn, :metadata), k, d)
-_getmeta(mda::MetadataArray, k::Symbol, d) = get(getfield(mda, :metadata), k, d)
+trynames(mda::MetadataArray) = MetadataNamed{metadatakeys(mda)}()
+@inline function trymeta(mda::MetadataArray, key::Symbol)
+    md = get(metadata(mda), key, undefvalue)
+    md === undefvalue ? MetadataNode(undefvalue, mda) : md
+end
 
 @specialize
 
-@propagate_inbounds Base.getindex(mda::MetadataArray, i::Int...) = parent(mda)[i...]
-@propagate_inbounds function Base.getindex(mda::MetadataArray, inds...)
+Base.@propagate_inbounds Base.getindex(mda::MetadataArray, i::Int...) = parent(mda)[i...]
+Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, inds...)
     _MDArray(parent(mda)[inds...], _propagate(mda))
 end
-@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, inds...)
+Base.@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, inds...)
     setindex!(parent(mda),val, inds...)
 end
 
@@ -212,18 +208,15 @@ Base.reshape(mda::MetadataArray, d::Dims) = _MDArray(reshape(parent(mda), d), _m
 for f in (:(Base.transpose), :(Base.adjoint), :(Base.permutedims), :(LinearAlgebra.pinv))
     @eval begin
         function $(f)(mda::MetadataVector)
-            _MDArray($(f)(parent(mda)), _propagate(permutedims_metadata, metadata(mda)))
+            _MDArray($(f)(parent(mda)), propagate(permutedims_metadata, _meta(mda)))
         end
         function $(f)(mda::MetadataMatrix)
-            _MDArray($(f)(parent(mda)), _propagate(permutedims_metadata, metadata(mda)))
+            _MDArray($(f)(parent(mda)), propagate(permutedims_metadata, _meta(mda)))
         end
     end
 end
-@inline function Base.permutedims(mda::MetadataArray{T,N}, perm::NTuple{N,Int}) where {T,N}
-    _MDArray(
-        permutedims(parent(mda), perm),
-        _propagate(Fix2(permutedims_metadata, perm), MetadataNode(mda))
-    )
+function Base.permutedims(mda::MetadataArray{T,N}, perm::NTuple{N,Int}) where {T,N}
+    _MDArray(permutedims(parent(mda), perm), propagate(permutedims_metadata, _meta(mda), perm))
 end
 
 #region broadcast
@@ -233,14 +226,14 @@ end
 Subtype of `BroadcastStyle` for `MetadataArray`, where `S` is the `BroadcastStyle`
 of the parent array. This helps extract, combine, and propagate metadata from arrays.
 """
-struct MetadataArrayStyle{S<:BroadcastStyle} <: AbstractArrayStyle{Any} end
+struct MetadataArrayStyle{S<:BroadcastStyle} <: Broadcast.AbstractArrayStyle{Any} end
 MetadataArrayStyle(::S) where {S} = MetadataArrayStyle{S}()
 MetadataArrayStyle(::S, ::Val{N}) where {S,N} = MetadataArrayStyle(S(Val(N)))
-MetadataArrayStyle(::Val{N}) where {N} = MetadataArrayStyle{DefaultArrayStyle{N}}()
+MetadataArrayStyle(::Val{N}) where {N} = MetadataArrayStyle{Broadcast.DefaultArrayStyle{N}}()
 function MetadataArrayStyle(a::BroadcastStyle, b::BroadcastStyle)
     style = BroadcastStyle(a, b)
-    if style === Unknown()
-        return Unknown()
+    if style === Broadcast.Unknown()
+        return Broadcast.Unknown()
     else
         return MetadataArrayStyle(style)
     end
@@ -250,24 +243,24 @@ function Base.BroadcastStyle(T::Type{<:MetadataArray})
 end
 function Base.BroadcastStyle(::MetadataArrayStyle{A}, ::MetadataArrayStyle{B}) where {A,B}
     style = BroadcastStyle(A(), B())
-    isa(style, Unknown) ? Unknown() : MetadataArrayStyle(style)
+    isa(style, Broadcast.Unknown) ? Broadcast.Unknown() : MetadataArrayStyle(style)
 end
 
 # Resolve ambiguities
 # for all these cases, we define that we win to be the outer style regardless of order
-for B in (:BroadcastStyle, :DefaultArrayStyle, :AbstractArrayStyle, :(Style{Tuple}),)
+for B in (:BroadcastStyle, :(Broadcast.DefaultArrayStyle), :(Broadcast.AbstractArrayStyle), :(Broadcast.Style{Tuple}),)
     @eval begin
-        Base.BroadcastStyle(::MetadataArrayStyle{A}, b::$B) where {A} = MetadataArrayStyle(A(), b)
+        #Base.BroadcastStyle(::MetadataArrayStyle{A}, b::$B) where {A} = MetadataArrayStyle(A(), b)
         Base.BroadcastStyle(b::$B, ::MetadataArrayStyle{A}) where {A} = MetadataArrayStyle(b, A())
     end
 end
 
 # We need to implement copy because if the wrapper array type does not support setindex
 # then the `similar` based default method will not work
-function Broadcast.copy(bc::Broadcasted{MetadataArrayStyle{S}}) where {S}
+function Broadcast.copy(bc::Broadcast.Broadcasted{MetadataArrayStyle{S}}) where {S}
     args = bc.args
-    data = copy(Broadcasted{S}(bc.f, map(delete_metadata, args), axes(bc)))
-    md = _combine(combine_metadata, args)
+    data = copy(Broadcast.Broadcasted{S}(bc.f, map(delete_metadata, args), axes(bc)))
+    md = MetadataInterface.combine(combine_metadata, args)
     return _MDArray(data, md)
 end
 #endregion

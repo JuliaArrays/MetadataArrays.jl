@@ -1,8 +1,22 @@
+using Aqua
 using MetadataArrays
-using MetadataArrays: MetadataNode, MetadataPersistent
+using MetadataArrays:
+    MetadataNode,
+    MetadataStyle,
+    MetadataPersistent,
+    propagate_metadata,
+    permutedims_metadata
 using Test
 
+Aqua.test_all(MetadataArrays)
+
 #=
+
+Pkg.activate(".")
+using MetadataArrays
+using MetadataArrays: MetadataStyle, propagate_metadata, propagate
+using BenchmarkTools
+
 @testset "MetadataVector" begin
     v = [1, 3, 5, 4]
     mdv = MetadataVector(v, "Numbers")
@@ -46,8 +60,14 @@ end
 end
 =#
 
+struct PersistantAnnotation{A}
+    annotation::A
+end
+
+MetadataArrays.MetadataStyle(@nospecialize(T::Type{<:PersistantAnnotation})) = MetadataArrays.MetadataPersistent()
+
 a = [1 2; 3 4; 5 4]
-md = (m1 =1, m2=[1, 2]);
+md = (m1 =1, annotation=PersistantAnnotation("hello world"));
 mda = MetadataArray(a, md);
 
 @test first(mda) == first(a)
@@ -68,67 +88,14 @@ mda = MetadataArray(a, md);
 @test getproperty(mda, :m1) == 1
 @test metadata(mda, "m1") == 1
 @test metadata(mda, :m1) == 1
-@test hasproperty(mda, "m2")
-@test hasproperty(mda, :m2)
+@test hasproperty(mda, "annotation")
+@test hasproperty(mda, :annotation)
 @test metadatakeys(mda) == propertynames(mda) == keys(md)
 @test all(mda .== a)
+@test all(mda .== mda)
+@test metadata(mda[:,1], :annotation) == md.annotation
 
-#=
-mxview = attach_metadata(meta)(xview)
-@test @inferred(parent_type(mx)) <: typeof(x)
-@test @inferred(parent_type(mxview)) <: typeof(xview)
-#@test @inferred(typeof(mx)(xview, meta)) isa typeof(mx)
-@test mxview.indices === xview.indices
-@test ArrayInterface.defines_strides(typeof(mx))
+@test metadata(@inferred(Base.adjoint(mda)), :annotation) == md.annotation
+@test metadata(@inferred(Base.adjoint(mda[:, 1])), :annotation) == md.annotation
+@test metadata(@inferred(permutedims(mda, (2, 1))), :annotation) == md.annotation
 
-# permutedims
-@test metadata(mx') == metadata(permutedims(mx))
-
-mvx = attach_metadata(xview, (m1 = 1, m2 = [1, 2]))
-@test mvx.m1 == 1
-@test mvx.m2 == [1, 2]
-
-x = ones(4, 4);
-meta = (m1 =1, m2=[1, 2]);
-mx = attach_metadata(meta)(x);
-
-@test metadata(similar(mx, eltype(mx), size(mx))) == meta
-@test metadata(similar(mx, eltype(mx), axes(mx))) == meta
-
-@test @inferred(metadata(mx)) == meta
-
-@test @inferred(metadata(parent(mx))) === no_data
-@test @inferred(has_metadata(mx))
-@test @inferred(has_metadata(mx, :m1))
-@test @inferred(!has_metadata(parent(mx), :m1))
-@test getmeta(mx, :m1, 3) == 1
-@test mx[1] == 1
-@test mx[1:2] == [1, 1]
-@test metadata(mx[1:2]) == metadata(mx)
-@test @inferred(metadata_type(view(parent(mx), :, :))) <: Metadata.NoData
-@test @inferred(metadata_type(mx)) <: NamedTuple
-
-meta = Dict(:m1 => 1, :m2 => [1,2])
-mx = attach_metadata(x, meta);
-@test @inferred(parent_type(typeof(mx))) <: typeof(x)
-@test @inferred(metadata(mx)) == meta
-@test @inferred(has_metadata(mx))
-@test @inferred(has_metadata(mx, :m1))
-@test getmeta(mx, :m1, 4) == 1
-@test getmeta(mx, :m4, 4) == 4
-@test getmeta(ndims, x, :m4) == 2
-# Currently Dict doesn't preserve order so we just check for presence of keys
-@test in(:m1, propertynames(mx))
-@test in(:m2, propertynames(mx))
-@test mx[1] == 1
-@test mx[1:2] == [1, 1]
-@test @inferred(metadata(mx[1:2])) == metadata(mx)
-@test @inferred(metadata_type(mx)) <: AbstractDict
-# test getmeta/getmeta!
-
-@test IndexStyle(typeof(mx)) isa IndexLinear
-@test @inferred(size(mx)) == (4, 4)
-@test @inferred(axes(mx)) == (1:4, 1:4)
-mx.m1 = 2
-@test mx.m1 == 2
-=#

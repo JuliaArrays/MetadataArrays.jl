@@ -72,7 +72,7 @@ Dict{String, String} with 3 entries:
 ```
 """
 function MetadataArray(p::AbstractArray, mdn::NamedTuple)
-    check_metadata(NamedStyle{keys(mdn)}(), p, mdn)
+    check_metadata(NamedStyle(), p, mdn)
     _MDArray(p, mdn)
 end
 MetadataArray(p::AbstractArray, md) = MetadataArray(p, NamedTuple(md))
@@ -172,7 +172,7 @@ function metadata(mda::MetadataArray, key::Symbol, default; style::Bool=false)
     md = get(_meta(mda), key, default)
     style ? (md, MetadataStyle(typeof(md))) : md
 end
-metadatakeys(mda::MetadataArray) = keys(trynames(mda))
+metadatakeys(mda::MetadataArray) = keys(getfield(mda, :metadata))
 metadatasupport(T::Type{<:MetadataArray}) = (read=true, write=false)
 
 delete_metadata(mda::MetadataArray) = parent(mda)
@@ -274,5 +274,15 @@ function Broadcast.copy(bc::Broadcast.Broadcasted{MetadataArrayStyle{S}}) where 
     return _MDArray(data, md)
 end
 #endregion
+
+#region mutating methods
+function Base.empty!(@nospecialize(mdv::MetadataVector)) end
+function Base.push!(@nospecialize(mdv::MetadataVector)) end
+function Base.pushfirst!(@nospecialize(mdv::MetadataVector)) end
+function Base.pop!(@nospecialize(mdv::MetadataVector)) end
+function Base.popfirst!(@nospecialize(mdv::MetadataVector)) end
+function Base.append!(@nospecialize(mdv::MetadataVector)) end
+#endregion
+
 
 end # module

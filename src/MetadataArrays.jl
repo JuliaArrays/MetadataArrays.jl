@@ -56,15 +56,15 @@ Custom `AbstractArray` object to store an `AbstractArray` `parent` as well as so
 ```jldoctest metadataarray_docs
 julia> v = ["John", "John", "Jane", "Louise"];
 
-julia> mdv = MetadataArray(v, Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
-4-element MetadataArrays.MetadataArray{String,Dict{String,String},1,Array{String,1}}:
+julia> mdv = MetadataArray(v, groups = Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
+4-element MetadataVector{String, Vector{String}, NamedTuple{(:groups,), Tuple{Dict{String, String}}}}:
  "John"
  "John"
  "Jane"
  "Louise"
 
-julia> metadata(mdv)
-Dict{String,String} with 3 entries:
+julia> metadata(mdv, :groups)
+Dict{String, String} with 3 entries:
   "John"   => "Treatment"
   "Jane"   => "Placebo"
   "Louise" => "Placebo"

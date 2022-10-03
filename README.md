@@ -9,46 +9,22 @@ Implementation of arrays with metadata.
 
 ## Metadata Arrays
 
-A `MetadataArray` is a an `Array`, together with some metadata.
+`MetadataArray` binds an array to named metadata.
 
 ```julia
 julia> v = ["John", "John", "Jane", "Louise"];
 
-julia> mdv = MetadataArray(v, Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
-4-element MetadataVector{String, Dict{String, String}, Vector{String}}:
+julia> mdv = MetadataArray(v, groups = Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
+4-element MetadataVector{String, Vector{String}, NamedTuple{(:groups,), Tuple{Dict{String, String}}}}:
  "John"
  "John"
  "Jane"
  "Louise"
 
-```
-
-The parent `AbstractArray` as well as the metadata can be recovered with `parent` and `metadata` respectively.
-
-```julia
-julia> parent(mdv)
-4-element Vector{String}:
- "John"
- "John"
- "Jane"
- "Louise"
-
-julia> metadata(mdv)
+julia> metadata(mdv, :groups)
 Dict{String, String} with 3 entries:
   "John"   => "Treatment"
   "Jane"   => "Placebo"
   "Louise" => "Placebo"
 
 ```
-
-`metadata` is preserved when taking views:
-
-```julia
-julia> metadata(view(mdv, 1:2))
-Dict{String, String} with 3 entries:
-  "John"   => "Treatment"
-  "Jane"   => "Placebo"
-  "Louise" => "Placebo"
-```
-
-`mdv` can be used as a regular `AbstractArray` (meaning all operations that work on `AbstractArray` should work on a `MetadataArray` out of the box.

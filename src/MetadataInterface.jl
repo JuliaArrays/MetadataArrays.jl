@@ -2,10 +2,17 @@
 module MetadataInterface
 
 import ArrayInterfaceCore: parent_type, is_forwarding_wrapper, can_setindex,
-    can_change_size, @assume_effects
+    can_change_size
 using DataAPI
 import DataAPI: metadata, metadatakeys, metadatasupport
 
+@static if isdefined(Base, Symbol("@assume_effects"))
+    using Base: @assume_effects
+else
+    macro assume_effects(_, ex)
+        :(Base.@pure $(ex))
+    end
+end
 @assume_effects :total function find_all_true(t::Tuple{Vararg{Bool}})
     out = Int[]
     for i in 1:nfields(t)
@@ -16,7 +23,6 @@ import DataAPI: metadata, metadatakeys, metadatasupport
     (out...,)
 end
 @assume_effects :total function _find_first_symbol(s::Symbol, syms::Tuple{Vararg{Symbol}})
-    @nospecialize syms
     for i in 1:nfields(syms)
         getfield(syms, i) === s && return i
     end
@@ -24,7 +30,6 @@ end
 end
 
 @assume_effects :total function _merge_names(an::Tuple{Vararg{Symbol}}, bn::Tuple{Vararg{Symbol}})
-    @nospecialize an bn
     names = Symbol[an...]
     for n in bn
         if _find_first_symbol(n, an) === 0

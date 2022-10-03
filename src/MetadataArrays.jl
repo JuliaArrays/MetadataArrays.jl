@@ -72,7 +72,7 @@ Dict{String, String} with 3 entries:
 ```
 """
 function MetadataArray(p::AbstractArray, mdn::NamedTuple)
-    check_metadata(p, mdn)
+    check_metadata(MetadataNamed{keys(mdn)}(), p, mdn)
     _MDArray(p, mdn)
 end
 MetadataArray(p::AbstractArray, md) = MetadataArray(p, NamedTuple(md))
@@ -172,18 +172,28 @@ function metadata(mda::MetadataArray, key::Symbol, default; style::Bool=false)
     md = get(_meta(mda), key, default)
     style ? (md, MetadataStyle(typeof(md))) : md
 end
-metadatakeys(mda::MetadataArray) = keys(_meta(mda))
+metadatakeys(mda::MetadataArray) = keys(trynames(mda))
 metadatasupport(T::Type{<:MetadataArray}) = (read=true, write=false)
 
 delete_metadata(mda::MetadataArray) = parent(mda)
 
-trynames(mda::MetadataArray) = MetadataNamed{metadatakeys(mda)}()
+trynames(T::Type{<:MetadataArray}) = trynames(fieldtype(T, :metadata))
 @inline function trymeta(mda::MetadataArray, key::Symbol)
     md = get(metadata(mda), key, undefvalue)
     md === undefvalue ? MetadataNode(undefvalue, mda) : md
 end
-
 @specialize
+
+@inline function MetadataStyle(T::Type{<:MetadataArray})
+    M = fieldtype(T, :metadata)
+    if hasfield(M, :MetadataStyle)
+        S = fieldtype(M, :MetadataStyle)
+        return S <: MetadataStyle ? S() : MetadataDefault()
+    else
+        return MetadataDefault()
+    end
+end
+
 
 Base.@propagate_inbounds Base.getindex(mda::MetadataArray, i::Int...) = parent(mda)[i...]
 Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, inds...)

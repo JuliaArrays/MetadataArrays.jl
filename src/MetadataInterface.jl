@@ -61,7 +61,7 @@ instances of `M` are propagated between operations.
 abstract type MetadataStyle end
 MetadataStyle(T::Type) = MetadataDefault()
 MetadataStyle(::Type{Union{}}) = MetadataUnknown()  # ambiguity resolution
-MetadataStyle(S::Type{<:MetadataStyle}) = S()
+MetadataStyle(@nospecialize T::Type{<:MetadataStyle}) = MetadataStyleStyle()
 
 """
     MetadataPersistent
@@ -83,7 +83,16 @@ See also: [`MetadataStyle`](@ref)
 struct MetadataDefault <: MetadataStyle end
 
 """
-    MetadataNamed
+    MetadataStyleStyle
+
+Subtype of `MetadataStyle` for metadata that is itself a subtype of `MetadataStyle`.
+
+See also: [`MetadataStyle`](@ref)
+"""
+struct MetadataStyleStyle <: MetadataStyle end
+
+"""
+    MetadataNamed{names}
 
 Subtype of `MetadataStyle` indicating that it's associated data is a `NamedTuple` where
 each field is also metadata.
@@ -91,31 +100,38 @@ each field is also metadata.
 See also: [`MetadataStyle`](@ref)
 """
 struct MetadataNamed{nms} <: MetadataStyle end
+Base.keys(::MetadataNamed{nms}) where {nms} = nms
 
 struct MetadataUnknown <: MetadataStyle end
 
 """
-    MetadataStyle(s1::MetadataStyle, s2::MetadataStyle) -> MetadataStyle
+    style_rule(s1::MetadataStyle, s2::MetadataStyle) -> MetadataStyle
 
 Indicate how to resolve different `MetadataStyle`s. For example,
 `MetadataStyle(::Primary, ::Secondary) = Primary()` would indicate that style
 `Primary` has precedence over `Secondary`. You do not have to (and generally should not)
 define both argument orders.
 """
-MetadataStyle(::S, ::S) where {S<:MetadataStyle} = S()
-MetadataStyle(x::MetadataDefault, ::MetadataDefault) = x
-MetadataStyle(x::MetadataStyle, ::MetadataDefault) = x
-MetadataStyle(::MetadataStyle, ::MetadataStyle) = MetadataUnknown()
-function MetadataStyle(::MetadataNamed{x}, ::MetadataNamed{y}) where {x,y}
+style_rule(::S, ::S) where {S<:MetadataStyle} = S()
+style_rule(x::MetadataDefault, ::MetadataDefault) = x
+style_rule(x::MetadataStyle, ::MetadataDefault) = x
+style_rule(::MetadataStyle, ::MetadataStyle) = MetadataUnknown()
+function style_rule(::MetadataNamed{x}, ::MetadataNamed{y}) where {x,y}
     MetadataNamed{_merge_names(x, y)}()
+end
+style_rule(@nospecialize(x::MetadataStyle)) = x
+@inline function style_rule(x::MetadataStyle, y::MetadataStyle, zs::MetadataStyle...)
+    style_rule(style_rule(x, y), zs...)
 end
 
 """
     combine_styles(mds...) -> MetadataStyle
 
-Retrieves the `MetadataStyle` for each argument and combines them into a single
-`MetadataStyle`, using `MetadataStyle(style1, style2)` to repeatedly determine the
+Performs `MetadataStyle(typeof(arg))` for each argument and combines them into a single
+`MetadataStyle`, using `style_rule(style1, style2)` to repeatedly determine the
 style until only one argument remains.
+
+See also: [`style_rule`](@ref)
 """
 combine_styles() = MetadataDefault()
 combine_styles(x) = MetadataStyle(typeof(x))
@@ -123,9 +139,8 @@ combine_styles(x, y) = _combine_styles(combine_styles(x), combine_styles(y))
 @inline function combine_styles(x, y, zs...)
     _combine_styles(combine_styles(x), combine_styles(y, zs...))
 end
-# `_combine_styles(x, y)` ensures we
 function _combine_styles(x::MetadataStyle, y::MetadataStyle)
-    _catch_unkown(MetadataStyle(x, y), MetadataStyle(y, x), x, y)
+    _catch_unkown(style_rule(x, y), style_rule(y, x), x, y)
 end
 
 ## _catch_unkown
@@ -186,10 +201,8 @@ metadata(mdn::MetadataNode) = getfield(mdn, :metadata)
 metadata(mdn::NamedNodes, s::Symbol) = getfield(metadata(mdn), s)
 metadata(mdn::MetadataNode, ::Symbol, d) = d
 metadata(mdn::NamedNodes, key::Symbol, d) = get(metadata(mdn), key, d)
-metadatakeys(mdn::MetadataNode) = ()
-metadatakeys(mdn::NamedNodes{syms}) where {syms} = syms
+metadatakeys(mdn::MetadataNode) = keys(trynames(mdn))
 metadatasupport(T::Type{<:MetadataNode}) = (read=true, write=false)
-
 function Base.show(io::IO, m::MIME"text/plain", mdn::MetadataNode)
     print(io, "MetadataNode{$(nameof(typeof(MetadataStyle(typeof(mdn)))))}")
     print(io, "(")
@@ -216,9 +229,10 @@ delete_metadata(data) = data
 delete_metadata(mdn::MetadataNode) = MetadataNode(undefvalue, context(mdn))
 
 # TODO doc-trynames
-trynames(data) = MetadataNamed{()}()
-trynames(mdn::NamedTuple) = MetadataNamed{keys(mdn)}()
-trynames(mdn::NamedNodes) = MetadataNamed{keys(mdn)}()
+trynames(data) = trynames(typeof(data))
+trynames(T::Type) = MetadataNamed{()}()
+trynames(T::Type{<:NamedTuple{syms}}) where {syms} = MetadataNamed{syms}()
+trynames(T::Type{<:NamedNodes}) = trynames(fieldtype(T, :metadata_type))
 
 @specialize
 
@@ -246,16 +260,29 @@ function check_metadata(@nospecialize(ctx), @nospecialize(md))
 end
 check_metadata(::MetadataPersistent, @nospecialize(ctx), @nospecialize(md)) = nothing
 check_metadata(::MetadataDefault, @nospecialize(ctx), @nospecialize(md)) = nothing
-function check_metadata(::MetadataNamed, @nospecialize(ctx), @nospecialize(mdn::MetadataNode))
-    check_metadata(MetadataNamed(), ctx, metadata(mdn))
+check_metadata(::MetadataStyleStyle, @nospecialize(ctx), @nospecialize(md::MetadataStyle)) = nothing
+# TODO errors for MetadataStyleStyle and MetadataNamed with incorrect data types
+function check_metadata(s::MetadataNamed, @nospecialize(ctx), @nospecialize(mdn::MetadataNode))
+    check_metadata(s, ctx, metadata(mdn))
 end
-check_metadata(::MetadataNamed, @nospecialize(ctx), @nospecialize(md::NamedTuple)) = _check(ctx, md)
+function check_metadata(@nospecialize(s::MetadataNamed), @nospecialize(ctx), @nospecialize(md::NamedTuple))
+    _check(ctx, md)
+end
+function _check(ctx, md::NamedTuple)
+    for i in 1:nfields(md)
+        md_i = getfield(md, i)
+        check_metadata(combine_styles(md_i), ctx, md_i)
+    end
+    nothing
+end
+
 
 # TODO document propagate_metadata(::MetadataStyle, md)
 """
     propagate_metadata(style::MetadataStyle, md)
 """
 propagate_metadata(::MetadataPersistent, @nospecialize(md)) = md
+propagate_metadata(::MetadataStyleStyle, @nospecialize(md)) = md
 propagate_metadata(::MetadataDefault, @nospecialize(md)) = undefvalue
 function propagate_metadata(s::MetadataNamed, mdn::MetadataNode)
     propagate(propagate_metadata, metadata(mdn))
@@ -279,6 +306,11 @@ permutedims_metadata(s::MetadataStyle, @nospecialize(md), perm::Tuple) = propaga
     combine_metadata(style::MetadataStyle, mds::Tuple)
 """
 combine_metadata(::MetadataDefault, @nospecialize(mds::Tuple)) = undefvalue
+combine_metadata(::MetadataStyleStyle, ::Tuple{}) = MetadataDefault()
+combine_metadata(s::MetadataStyleStyle, mds::Tuple{Any,Vararg{Any}}) = combine_metadata(s, Base.tail(mds))
+@inline function combine_metadata(s::MetadataStyleStyle, mds::Tuple{MetadataStyle,Vararg{Any}})
+    style_rule(getfield(mds, 1), combine_metadata(s, Base.tail(mds)))
+end
 function combine_metadata(style::MetadataNamed, @nospecialize(mds::Tuple))
     combine(combine_metadata, mds)
 end
@@ -288,14 +320,6 @@ function combine_metadata(::MetadataPersistent, ns::Tuple{Any,Vararg{Any}})
     n = getfield(ns, 1)
     isundefnode(n) ? combine_metadata(MetadataPersistent(), Base.tail(ns)) : n
 end
-function _check(ctx, md::NamedTuple)
-    for i in 1:nfields(md)
-        md_i = getfield(md, i)
-        check_metadata(combine_styles(md_i), ctx, md_i)
-    end
-    nothing
-end
-
 @inline function propagate(f::Function, nt::NamedTuple{syms}, args...) where {syms}
     t = ntuple(Val{nfields(nt)}()) do i
         nt_i = getfield(nt, i)
@@ -311,9 +335,7 @@ end
         return NamedTuple{new_keys}(new_vals)
     end
 end
-function combine(f::Function, ctxs::Tuple)
-    _combine(f, combine_styles(map(trynames, ctxs)...), ctxs)
-end
+combine(f::Function, ctxs::Tuple) = _combine(f, style_rule(map(trynames, ctxs)...), ctxs)
 function _combine(f::Function, ::MetadataNamed{syms}, ctxs::Tuple) where {syms}
     vn = Val{nfields(ctxs)}()
     t = ntuple(Val{nfields(syms)}()) do i

@@ -6,6 +6,7 @@ using MetadataArrays:
     MetadataPersistent,
     propagate_metadata,
     permutedims_metadata
+
 using Test
 
 Aqua.test_all(MetadataArrays)
@@ -55,3 +56,5 @@ mda = MetadataArray(a, md);
 
 mda[1] = 100
 @test mda[1] == 100
+
+@test isa(MetadataStyle(typeof(MetadataArray(a, (m1 =1, MetadataStyle=MetadataPersistent())))), MetadataPersistent)

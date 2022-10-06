@@ -1,24 +1,11 @@
 using Aqua
 using MetadataArrays
-using MetadataArrays:
-    MetadataNode,
-    MetadataStyle,
-    PersistentStyle,
-    propagate_metadata,
-    permutedims_metadata
-
 using Test
 
 Aqua.test_all(MetadataArrays)
 
-struct PersistantAnnotation{A}
-    annotation::A
-end
-
-MetadataArrays.MetadataStyle(@nospecialize(T::Type{<:PersistantAnnotation})) = MetadataArrays.PersistentStyle()
-
 a = [1 2; 3 4; 5 4]
-md = (m1 =1, annotation=PersistantAnnotation("hello world"));
+md = (m1 =1, annotation="hello world");
 mda = MetadataArray(a, md);
 
 @test first(mda) == first(a)
@@ -48,13 +35,3 @@ mda = MetadataArray(a, md);
 @test all(mda .== a)
 @test all(mda .== mda)
 @test metadata(mda[:,1], :annotation) == md.annotation
-
-@test permutedims(MetadataArray(a; m1 = 1, m2 = 2), (2, 1)) == permutedims(a, (2, 1))
-@test metadata(@inferred(Base.adjoint(mda)), :annotation) == md.annotation
-@test metadata(@inferred(Base.adjoint(mda[:, 1])), :annotation) == md.annotation
-@test metadata(@inferred(permutedims(mda, (2, 1))), :annotation) == md.annotation
-
-mda[1] = 100
-@test mda[1] == 100
-
-@test isa(MetadataStyle(typeof(MetadataArray(a, (m1 =1, MetadataStyle=PersistentStyle())))), PersistentStyle)

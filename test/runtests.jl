@@ -1,67 +1,37 @@
-using MetadataArrays, Test
+using Aqua
+using MetadataArrays
+using Test
 
-@testset "MetadataVector" begin
-    v = [1, 3, 5, 4]
-    sv = MetadataVector(v, "Numbers")
-    @test length(sv) == 4
-    @test collect(sv) == parent(sv) == copy(sv)
-    @test metadata(sv) == "Numbers"
-    s_view1 = view(sv, 1:3)
-    s_view2 = view(s_view1, 1:2)
-    @test metadata(s_view1) == metadata(s_view2) == "Numbers"
-    sv[3] = 50
-    @test all(sv .== [1, 3, 50, 4])
-    @test eltype(sv) == Int
-    @test metadata(similar(sv)) == metadata(sv)
-end
+Aqua.test_all(MetadataArrays)
 
-@testset "MetadataArray" begin
-    v = [1 2; 3 4; 5 4]
-    sv = MetadataArray(v, Dict(1 => "Not at all", 10 => "A lot"))
-    @test size(sv) == size(v)
-    @test sv[6] == parent(sv)[6]
-    @test collect(sv) == parent(sv) == v == copy(sv)
-    @test metadata(sv) == Dict(1 => "Not at all", 10 => "A lot")
-    sv[3, 2] = 50
-    @test all(sv .== [1 2; 3 4; 5 50])
-    @test parent(sv[1:2, 1]) == parent(sv)[1:2, 1]
-    @test metadata(sv[1:2, 1]) == metadata(sv)
-    @test metadata(rand(2)) === nothing
-    @test eltype(sv) == Int
+a = [1 2; 3 4; 5 4]
+md = (m1 =1, annotation="hello world");
+mda = MetadataArray(a, md);
 
-    s = MetadataArray(rand(4), "test")
-    sr = reshape(s, 2, 2)
-    @test parent(sr) == reshape(parent(s), 2, 2)
-    @test metadata(sr) == metadata(s)
-    @test axes(sr) == (Base.OneTo(2), Base.OneTo(2))
-    s2 = similar(s, (2, 3))
-    @test size(s2) == (2, 3)
-    @test metadata(s2) == metadata(s)
+@test first(mda) == first(a)
+@test last(mda) == last(a)
+@test size(mda) == size(a)
+@test axes(mda) == axes(a)
+@test strides(mda) == strides(a)
+@test length(mda) == length(a)
+@test firstindex(mda) == firstindex(a)
+@test lastindex(mda) == lastindex(a)
+@test in(1, mda)
+@test keys(mda) == keys(a)
+@test !isempty(mda)
+@test Base.dataids(mda) == Base.dataids(a)
+@test IndexStyle(mda) == IndexStyle(a)
 
-    x1 = rand(4, 4)
-    m1 = MetadataArray(x1, "something")
-    @test IndexStyle(m1) == IndexLinear()
-    x2 = view(x1, 1:2, 1:2)
-    m2 = MetadataArray(x2, "something")
-    @test IndexStyle(m2) == IndexCartesian()
-end
-
-@testset "properties" begin
-    a = ones(4, 4);
-    md1 = (m1 = 1, m2 = [1, 2]);
-    mda1 = MetadataArray(a, md1)
-    @test mda1.m1 == md1.m1
-    @test mda1."m1" == md1.m1
-    @test propertynames(mda1) == propertynames(md1)
-    @test hasproperty(mda1, :m1) == hasproperty(md1, :m1)
-    @test hasproperty(mda1, "m1") == hasproperty(md1, :m1)
-
-    md2 = Dict("m1" => 1, "m2" => [1, 2]);
-    mda2 = MetadataArray(a, md2)
-
-    @test mda2.m1 == md2["m1"]
-    @test mda2."m1" == md2["m1"]
-    @test propertynames(mda2) == keys(md2)
-    @test hasproperty(mda2, :m1) == haskey(md2, "m1")
-    @test hasproperty(mda2, "m1") == haskey(md2, "m1")
-end
+@test getproperty(mda, "m1") == 1
+@test getproperty(mda, :m1) == 1
+@test metadata(mda, "m1") == 1
+@test metadata(mda, :m1) == 1
+@test metadata(mda, "m10", 10) == 10
+@test metadata(mda, :m10, 10) == 10
+@test MetadataArrays.metadatasupport(typeof(mda)).read
+@test hasproperty(mda, "annotation")
+@test hasproperty(mda, :annotation)
+@test metadatakeys(mda) == propertynames(mda) == keys(md)
+@test all(mda .== a)
+@test all(mda .== mda)
+@test metadata(mda[:,1], :annotation) == md.annotation

@@ -1,6 +1,8 @@
-# MetadataArrays.jl
+# MetadataArrays
+
+```@index
+```
 
 ```@autodocs
 Modules = [MetadataArrays]
-Private = false
 ```

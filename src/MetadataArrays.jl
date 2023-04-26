@@ -12,12 +12,15 @@ export
     MetadataArray,
     MetadataMatrix,
     MetadataVector,
+    deletemetadata!,
+    emptymetadata!,
     metadata,
+    metadata!,
     metadatakeys
 
 @nospecialize
 
-struct MetadataArray{T, N, P<:AbstractArray,M<:NamedTuple} <: AbstractArray{T, N}
+struct MetadataArray{T, N, P<:AbstractArray,M<:Union{NamedTuple, AbstractDict{Symbol}}} <: AbstractArray{T, N}
     parent::P
     metadata::M
 
@@ -25,6 +28,8 @@ struct MetadataArray{T, N, P<:AbstractArray,M<:NamedTuple} <: AbstractArray{T, N
         new{eltype(p), ndims(p), typeof(p), typeof(md)}(p, md)
     end
 end
+
+BitArray(mda::MetadataArray) = BitArray(parent(mda))
 
 """
     MetadataArray(parent::AbstractArray, metadata)
@@ -51,7 +56,7 @@ Dict{String, String} with 3 entries:
 
 ```
 """
-MetadataArray(p::AbstractArray, mdn::NamedTuple) = _MDArray(p, mdn)
+MetadataArray(p::AbstractArray, mdn::Union{NamedTuple, AbstractDict{Symbol}, AbstractDict{String}}) = _MDArray(p, mdn)
 MetadataArray(p::AbstractArray, md) = MetadataArray(p, NamedTuple(md))
 MetadataArray(p::AbstractArray; kwargs...) = MetadataArray(p, values(kwargs))
 
@@ -125,6 +130,7 @@ function Base.dataids(mda::MetadataArray)
     (Base.dataids(parent(mda))..., Base.dataids(getfield(mda, :metadata))...)
 end
 
+#region metadata-api
 Base.propertynames(mda::MetadataArray) = keys(getfield(mda, :metadata))
 Base.getproperty(mda::MetadataArray, s::Symbol) = getfield(getfield(mda, :metadata), s)
 Base.getproperty(mda::MetadataArray, s::String) = getproperty(mda, Symbol(s))
@@ -156,6 +162,7 @@ emptymetadata!(mda::MetadataArray) = empty!(metadata(mda))
 
 dropmeta(mda::MetadataArray) = parent(mda)
 dropmeta(x) = x
+#endregion metadata-api
 
 # TODO function metadata! end
 
@@ -166,6 +173,7 @@ function Base.read!(io::IO, mda::MetadataArray)
 end
 
 @specialize
+
 @inline function Base.similar(mda::MetadataArray)
     _MDArray(similar(parent(mda)), getfield(mda, :metadata))
 end
@@ -179,20 +187,27 @@ end
 function Base.reshape(s::MetadataArray, d::Dims)
     MetadataArray(reshape(parent(s), d), getfield(mda, :metadata))
 end
+
+#region indexing
 Base.@propagate_inbounds Base.getindex(mda::MetadataArray, i::Int...) = parent(mda)[i...]
 Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, inds...)
     _MDArray(parent(mda)[inds...], getfield(mda, :metadata))
 end
+Base.@propagate_inbounds function Base.view(mda::MetadataArray, inds...)
+    _MDArray(view(parent(mda), inds...), getfield(mda, :metadata))
+end
 Base.@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, inds...)
     setindex!(parent(mda),val, inds...)
 end
+#endregion indexing
 
 #region broadcast
 """
-    MetadataArrayStyle{S}
+    MetadataArrays.MetadataArrayStyle{S}
 
 Subtype of `BroadcastStyle` for `MetadataArray`, where `S` is the `BroadcastStyle`
 of the parent array. This helps extract, combine, and propagate metadata from arrays.
+
 """
 struct MetadataArrayStyle{S<:BroadcastStyle} <: Broadcast.AbstractArrayStyle{Any} end
 MetadataArrayStyle(::S) where {S} = MetadataArrayStyle{S}()

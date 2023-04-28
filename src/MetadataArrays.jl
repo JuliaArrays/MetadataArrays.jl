@@ -20,21 +20,15 @@ export
 
 @nospecialize
 
-struct MetadataArray{T, N, P<:AbstractArray,M<:Union{NamedTuple, AbstractDict{Symbol}}} <: AbstractArray{T, N}
-    parent::P
-    metadata::M
-
-    global function _MDArray(p, md)
-        new{eltype(p), ndims(p), typeof(p), typeof(md)}(p, md)
-    end
-end
-
-BitArray(mda::MetadataArray) = BitArray(parent(mda))
+const MDType = Union{NamedTuple, AbstractDict{Symbol}}
 
 """
-    MetadataArray(parent::AbstractArray, metadata)
+    MetadataArray(x::AbstractArray, md::Union{AbstractDict{Symbol}, NamedTuple})
+    MetadataArray(x::AbstractArray, md::Pair{Symbol}) -> MetadataArray(x, Dict(md...))
+    MetadataArray(x::AbstractArray; md...) -> MetadataArray(x, NamedTuple(md))
 
-Custom `AbstractArray` object to store an `AbstractArray` `parent` as well as some `metadata`.
+Custom `AbstractArray` object to store an `AbstractArray` (`x`) as well as some
+metadata (`md`).
 
 # Examples
 
@@ -56,29 +50,86 @@ Dict{String, String} with 3 entries:
 
 ```
 """
-MetadataArray(p::AbstractArray, mdn::Union{NamedTuple, AbstractDict{Symbol}, AbstractDict{String}}) = _MDArray(p, mdn)
-MetadataArray(p::AbstractArray, md) = MetadataArray(p, NamedTuple(md))
-MetadataArray(p::AbstractArray; kwargs...) = MetadataArray(p, values(kwargs))
+struct MetadataArray{T, N, P<:AbstractArray{T, N}, M<:MDType} <: AbstractArray{T, N}
+    parent::P
+    metadata::M
+
+    global function _MDArray(p, md)
+        new{eltype(p), ndims(p), typeof(p), typeof(md)}(p, md)
+    end
+
+    function MetadataArray{T, N, P, M}(p::AbstractArray, md::MDType) where {T, N, P, M}
+        new{T, N, P, M}(p, md)
+    end
+    function MetadataArray{T, N, P, M}(p::AbstractArray, kv::Pair{Symbol}, kvs::Pair{Symbol}...) where {T, N, P, M}
+        MetadataArray{T, N, P, M}(p, M(kv, kvs...))
+    end
+    function MetadataArray{T, N, P, M}(p::AbstractArray; kwargs...) where {T, N, P, M}
+        if isempty(kwargs) && isa(p, MetadataArray)
+            return convert(MetadataArray{T, N, P, M}, p)
+        else
+            return MetadataArray{T, N, P, M}(p, M(; kwargs...))
+        end
+    end
+
+
+    function MetadataArray{T, N, P}(p::AbstractArray, md::MDType) where {T, N, P}
+        MetadataArray{T, N, P, typeof(md)}(p, md)
+    end
+    function MetadataArray{T, N, P}(p::AbstractArray; kwargs...) where {T, N, P}
+        if isempty(kwargs) && isa(p, MetadataArray)
+            return convert(MetadataArray{T, N, P}, p)
+        else
+            return MetadataArray{T, N, P}(p, values(kwargs))
+        end
+    end
+    function MetadataArray{T, N, P}(p::AbstractArray, kv::Pair{Symbol}, kvs::Pair{Symbol}...) where {T, N, P}
+        MetadataArray{T, N, P}(p, Dict(kv, kvs...))
+    end
+
+
+    function MetadataArray{T, N}(p::AbstractArray, args...; kwargs...) where {T, N}
+        MetadataArray{T, N, typeof(p)}(p, args...; kwargs...)
+    end
+    function MetadataArray{T}(p::AbstractArray, args...; kwargs...) where {T}
+        MetadataArray{eltype(p), ndims(p)}(p, args...; kwargs...)
+    end
+    function MetadataArray(p::AbstractArray, args...; kwargs...)
+        MetadataArray{eltype(p)}(p, args...; kwargs...)
+    end
+end
 
 """
     MetadataMatrix
 
-Shorthand for `MetadataVector{T,P<:AbstractArray{T,2},M}`.
+Shorthand for `MetadataVector{T, P<:AbstractArray{T,2}, M}`.
 
 See also: [`MetadataArray`](@ref), [`MetadataMatrix`](@ref)
 """
-const MetadataMatrix{T,P<:AbstractArray{T,2},M} = MetadataArray{T, 2, P, M}
-MetadataMatrix(m::AbstractMatrix, md) = MetadataArray(m, md)
+const MetadataMatrix{T, P<:AbstractMatrix{T}, M} = MetadataArray{T, 2, P, M}
+function MetadataMatrix{T}(p::AbstractMatrix, args...; kwargs...) where {T}
+    MetadataArray{T, 2}(p, args...; kwargs...)
+end
+function MetadataMatrix(p::AbstractMatrix, args...; kwargs...)
+    MetadataMatrix{eltype(p)}(p, args...; kwargs...)
+end
 
 """
     MetadataVector
 
-Shorthand for `MetadataVector{T,P<:AbstractArray{T,1},M}`.
+Shorthand for `MetadataVector{T, P<:AbstractArray{T,1}, M}`.
 
 See also: [`MetadataArray`](@ref), [`MetadataMatrix`](@ref)
 """
-const MetadataVector{T,P<:AbstractArray{T,1},M} = MetadataArray{T, 1, P, M}
-MetadataVector(v::AbstractVector, md) = MetadataArray(v, md)
+const MetadataVector{T, P<:AbstractVector{T}, M} = MetadataArray{T, 1, P, M}
+function MetadataVector{T}(p::AbstractVector{T}, args...; kwargs...) where {T}
+    MetadataArray{T, 1}(p, args...; kwargs...)
+end
+function MetadataVector(p::AbstractVector, args...; kwargs...)
+    MetadataVector{eltype(p)}(p, args...; kwargs...)
+end
+
+Base.BitArray(mda::MetadataArray) = BitArray(parent(mda))
 
 # avoid new methods for every new parent, metadata type permutation
 function Base.convert(T::Type{<:MetadataArray}, mda::MetadataArray)
@@ -116,6 +167,7 @@ Base.firstindex(mda::MetadataArray) = firstindex(parent(mda))
 Base.lastindex(mda::MetadataArray) = lastindex(parent(mda))
 
 Base.pointer(mda::MetadataArray) = pointer(parent(mda))
+Base.pointer(mda::MetadataArray, i::Integer) = pointer(parent(mda), i)
 
 Base.in(val, mda::MetadataArray) = in(val, parent(mda))
 Base.sizehint!(mda::MetadataArray, n::Integer) = sizehint!(parent(mda), n)
@@ -172,16 +224,61 @@ function Base.read!(io::IO, mda::MetadataArray)
     return mda
 end
 
+#region resizing!
+function Base.resize!(v::MetadataVector, n::Integer)
+    resize!(parent(v), n)
+    return v
+end
+function Base.insert!(v::MetadataVector, i::Integer, item)
+    insert!(parent(v), i, item)
+    return v
+end
+function Base.push!(v::MetadataVector, item)
+    push!(parent(v), item)
+    return v
+end
+function Base.pushfirst!(v::MetadataVector, item)
+    pushfirst!(parent(v), item)
+    return v
+end
+function Base.append!(v::MetadataVector, iters...)
+    append!(parent(v), iters...)
+    return v
+end
+function Base.prepend!(v::MetadataVector, iters...)
+    prepend!(parent(v), iters...)
+    return v
+end
+function Base.deleteat!(v::MetadataVector, inds)
+    deleteat!(parent(v), inds)
+    return v
+end
+function Base.keepat!(v::MetadataVector, inds)
+    keepat!(parent(v), inds)
+    return v
+end
+function Base.empty!(v::MetadataVector)
+    empty!(parent(v))
+    return v
+end
+
+Base.pop!(v::MetadataVector) = pop!(parent(v))
+Base.popfirst!(v::MetadataVector) = popfirst!(parent(v))
+Base.popat!(v::MetadataVector, i::Integer) = popat!(parent(v), i)
+Base.popat!(v::MetadataVector, i::Integer, default) = popat!(parent(v), i, default)
+
+#endregion resizing!
+
 @specialize
 
 @inline function Base.similar(mda::MetadataArray)
-    _MDArray(similar(parent(mda)), getfield(mda, :metadata))
+    MetadataArray(similar(parent(mda)), metadata(mda))
 end
 @inline function Base.similar(mda::MetadataArray, ::Type{T}) where {T}
-    _MDArray(similar(parent(mda), T), metadata(mda))
+    MetadataArray(similar(parent(mda), T), metadata(mda))
 end
 function Base.similar(mda::MetadataArray, ::Type{T}, dims::Dims) where {T}
-    _MDArray(similar(parent(mda), T, dims), metadata(mda))
+    MetadataArray(similar(parent(mda), T, dims), metadata(mda))
 end
 
 function Base.reshape(s::MetadataArray, d::Dims)
@@ -191,10 +288,10 @@ end
 #region indexing
 Base.@propagate_inbounds Base.getindex(mda::MetadataArray, i::Int...) = parent(mda)[i...]
 Base.@propagate_inbounds function Base.getindex(mda::MetadataArray, inds...)
-    _MDArray(parent(mda)[inds...], getfield(mda, :metadata))
+    MetadataArray(parent(mda)[inds...], getfield(mda, :metadata))
 end
 Base.@propagate_inbounds function Base.view(mda::MetadataArray, inds...)
-    _MDArray(view(parent(mda), inds...), getfield(mda, :metadata))
+    MetadataArray(view(parent(mda), inds...), getfield(mda, :metadata))
 end
 Base.@propagate_inbounds function Base.setindex!(mda::MetadataArray, val, inds...)
     setindex!(parent(mda),val, inds...)

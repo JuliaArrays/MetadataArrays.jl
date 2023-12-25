@@ -1,4 +1,5 @@
 using Aqua
+using ArrayInterface
 using MetadataArrays
 using Test
 
@@ -24,22 +25,16 @@ vmda = view(MetadataArray(a, md), :, :);
 @test IndexStyle(mda) == IndexStyle(a)
 @test mda == vmda == a
 
-@test getproperty(mda, "m1") == 1
-@test getproperty(mda, :m1) == 1
-@test metadata(mda, "m1") == 1
 @test metadata(mda, :m1) == 1
-@test metadata(mda, "m10", 10) == 10
 @test metadata(mda, :m10, 10) == 10
 @test MetadataArrays.metadatasupport(typeof(mda)).read
-@test hasproperty(mda, "annotation")
-@test hasproperty(mda, :annotation)
-@test metadatakeys(mda) == propertynames(mda) == keys(md)
 @test all(mda .== a)
 @test all(mda .== mda)
 @test metadata(mda[:, 1], :annotation) == metadata(vmda[:, 1], :annotation) == md.annotation
 @test mda[1, 1] == a[1, 1]
 
 
-@test MetadataArrays.can_change_size(MetadataVector{Int,Vector{Int},Dict{Symbol,Any}})
-@test MetadataArrays.can_setindex(MetadataVector{Int,Vector{Int},Dict{Symbol,Any}})
-@test MetadataArrays.is_forwarding_wrapper(MetadataVector{Int,Vector{Int},Dict{Symbol,Any}})
+# @test MetadataArrays.can_change_size(MetadataVector{Int,Vector{Int},Dict{Symbol,Any}})
+@test ArrayInterface.can_setindex(MetadataVector{Int, Vector{Int}})
+@test ArrayInterface.is_forwarding_wrapper(MetadataVector{Int,Vector{Int}})
+

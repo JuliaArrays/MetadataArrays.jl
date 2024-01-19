@@ -1,34 +1,53 @@
+module MetadataDicts
 
-struct MetadataDict{K, V, P <: Union{AbstractDict{K, V}, NamedTuple{<:Any, <:Tuple{Vararg{V}}}}, M <: MDType, S<:MetadataStyle} <: AbstractDict{K, V}
+using ArrayInterface
+import ArrayInterface: parent_type, can_setindex, can_change_size
+using DataAPI
+import DataAPI: metadata, metadata!, metadatakeys, metadatasupport, deletemetadata!,
+    emptymetadata!
+
+export
+    MetadataDict,
+    MetadataStyle
+
+#region styles
+struct MetadataBranch{S}
+    style::S
+end
+struct MetadataLeaf{S}
+    style::S
+end
+const MetadataStyle{S} = Union{MetadataLeaf{S}, MetadataBranch{S}}
+#endregion styles
+
+const MDType = Union{NamedTuple, AbstractDict{Symbol}, AbstractDict{String}}
+
+struct MetadataDict{K, V, P <: Union{AbstractDict{K, V}, NamedTuple{<:Any, <:Tuple{Vararg{V}}}}, M <: MDType} <: AbstractDict{K, V}
     parent::P
     metadata::M
-    style::S
 
-    function MetadataDict{K, V, P, M, S}(p::Union{AbstractDict, NamedTuple}=D(), m=M(), s=S()) where {K, V, P, M, S}
-        new{K, V, P, M, S}(p, m, s)
+    function MetadataDict{K, V, P, M}(p::Union{AbstractDict, NamedTuple}=D(), m=M()) where {K, V, P, M}
+        new{K, V, P, M}(p, m)
     end
-    function MetadataDict{K, V, P, M}(p::Union{AbstractDict, NamedTuple}=P(), m=NamedTuple(), s=MetadataStyle()) where {K, V, P, M}
-        MetadataDict{K, V, P, M, typeof(s)}(p, m, s)
+    function MetadataDict{K, V, P}(p::Union{AbstractDict, NamedTuple}=P(), m=NamedTuple()) where {K, V, P}
+        MetadataDict{K, V, P, typeof(m)}(p, m)
     end
-    function MetadataDict{K, V, P}(p::Union{AbstractDict, NamedTuple}=P(), m=NamedTuple(), s=MetadataStyle()) where {K, V, P}
-        MetadataDict{K, V, P, typeof(m)}(p, m, s)
+    function MetadataDict{K, V}(d::Union{AbstractDict, NamedTuple}, m=NamedTuple()) where {K, V}
+        MetadataDict{K, V, typeof(d)}(d, m)
     end
-    function MetadataDict{K, V}(d::Union{AbstractDict, NamedTuple}, m=NamedTuple(), s=MetadataStyle()) where {K, V}
-        MetadataDict{K, V, typeof(d)}(d, m, s)
+    function MetadataDict{K}(d::AbstractDict, m=NamedTuple()) where {K}
+        MetadataDict{K, valtype(d)}(d, m)
     end
-    function MetadataDict{K}(d::AbstractDict, m=NamedTuple(), s=MetadataStyle()) where {K}
-        MetadataDict{K, valtype(d)}(d, m, s)
-    end
-    function MetadataDict(d::AbstractDict, m::MDType=NamedTuple(), s=MetadataStyle())
-        MetadataDict{keytype(d)}(d, m, s)
+    function MetadataDict(d::AbstractDict, m::MDType=NamedTuple())
+        MetadataDict{keytype(d)}(d, m)
     end
 
     # NamedTuple support
-    function MetadataDict{Symbol}(p::NamedTuple, m::MDType=NamedTuple(), s=MetadataStyle())
-        MetadataDict{Symbol, eltype(p)}(p, m, s)
+    function MetadataDict{Symbol}(p::NamedTuple, m::MDType=NamedTuple())
+        MetadataDict{Symbol, eltype(p)}(p, m)
     end
-    function MetadataDict(p::NamedTuple, m::MDType=NamedTuple(), s=MetadataStyle())
-        MetadataDict{Symbol}(p, m, s)
+    function MetadataDict(p::NamedTuple, m::MDType=NamedTuple())
+        MetadataDict{Symbol}(p, m)
     end
 
     function Base.copy(mdd::MetadataDict{K, V, P, M}) where {K, V, P, M}
@@ -38,32 +57,39 @@ struct MetadataDict{K, V, P <: Union{AbstractDict{K, V}, NamedTuple{<:Any, <:Tup
         else
             m = copy(getfield(mdd, :metadata))
         end
-        s = getfield(mdd, :style)
-        new{K, V, P, M, typeof(s)}(p, m, s)
+        new{K, V, P, M}(p, m)
     end
 end
 
 const NamedMetadataDict{K, V, P, MDNS, MDTYS} = MetadataDict{K, V, P, NamedTuple{MDNS, MDTYS}}
 
 Base.parent(mdd::MetadataDict) = getfield(mdd, :parent)
-ArrayInterface.parent_type(@nospecialize(T::Type{<:MetadataDict})) = fieldtype(T, :parent)
+function ArrayInterface.parent_type(@nospecialize(T::Type{<:MetadataDict{<:Any, <:Any, <:Any, <:Any}}))
+    fieldtype(T, :parent)
+end
 
 Base.propertynames(mda::MetadataDict) = propertynames(getfield(mda, :parent))
 Base.hasproperty(mda::MetadataDict, s::Symbol) = hasproperty(getfield(mda, :parent), s)
+
 Base.getproperty(mda::MetadataDict, s::Symbol) = getproperty(getfield(mda, :parent), s)
-function Base.setproperty!(mda::MetadataDict, s::Symbol, v)
-    setproperty!(getfield(mda, :parent), s, v)
+function Base.getproperty(mda::MetadataDict, s::Symbol, order::Symbol)
+    getproperty(getfield(mda, :parent), s, order)
 end
 
-function ArrayInterface.can_setindex(@nospecialize(T::Type{<:MetadataDict}))
+Base.setproperty!(mda::MetadataDict, s::Symbol, v) = setproperty!(getfield(mda, :parent), s, v)
+function Base.setproperty!(mda::MetadataDict, s::Symbol, v, order::Symbol)
+    setproperty!(getfield(mda, :parent), s, v, order)
+end
+
+function ArrayInterface.can_setindex(@nospecialize(T::Type{<:MetadataDict{<:Any, <:Any, <:Any, <:Any}}))
     can_setindex(fieldtype(T, :parent))
 end
 
-function ArrayInterface.can_change_size(@nospecialize(T::Type{<:MetadataDict}))
+function ArrayInterface.can_change_size(@nospecialize(T::Type{<:MetadataDict{<:Any, <:Any, <:Any, <:Any}}))
     can_change_size(fieldtype(T, :parent))
 end
 
-ArrayInterface.is_forwarding_wrapper(@nospecialize(T::Type{<:MetadataDict})) = true
+ArrayInterface.is_forwarding_wrapper(@nospecialize(T::Type{<:MetadataDict{<:Any, <:Any, <:Any, <:Any}})) = true
 
 function Base.sizehint!(mdd::MetadataDict, n::Integer)
     sizehint!(getfield(mdd, :parent), n)
@@ -131,7 +157,7 @@ function _promote_valtypes(V, d, ds...)  # give up if promoted to any
 end
 
 Base.merge(pd::MetadataDict) = copy(pd)
-Base.merge(pd::NamedMetadataDict, pds::NamedMetadataDict...) = _mergeprops(_getarg2, pd, pds...)
+Base.merge(pd::NamedMetadataDict, pds::NamedMetadataDict...) = _mergewith(_getarg2, pd, pds...)
 _getarg2(@nospecialize(arg1), @nospecialize(arg2)) = arg2
 function Base.merge(pd::MetadataDict, pds::MetadataDict...)
     K = _promote_keytypes((pd, pds...))
@@ -155,17 +181,21 @@ function Base.mergewith(combine, pd::MetadataDict, pds::MetadataDict...)
     mergewith!(combine, out, pds...)
 end
 @inline function Base.mergewith(combine, pd::NamedMetadataDict, pds::NamedMetadataDict...)
-    _mergeprops(combine, pd, pds...)
+    _mergewith(combine, pd, pds...)
 end
-_mergeprops(combine, @nospecialize(x::NamedMetadataDict)) = x
-@inline function _mergeprops(combine, x::NamedMetadataDict, y::NamedMetadataDict)
+_mergewith(combine, @nospecialize(x::NamedMetadataDict)) = x
+@inline function _mergewith(combine, x::NamedMetadataDict, y::NamedMetadataDict)
     MetadataDict(mergewith(combine, getfield(x, :data), getfield(y, :data)))
 end
-@inline function _mergeprops(combine, x::NamedMetadataDict, y::NamedMetadataDict, zs::NamedMetadataDict...)
-    _mergeprops(combine, _mergeprops(combine, x, y), zs...)
+@inline function _mergewith(combine, x::NamedMetadataDict, y::NamedMetadataDict, zs::NamedMetadataDict...)
+    _mergewith(combine, _mergewith(combine, x, y), zs...)
 end
 
-metadata(mdd::MetadataDict) = getfield(mdd, :metadata)
+#region metadata interface
+metadatakeys(mdd::MetadataDict) = keys(getfield(mdd, :metadata))
+function metadatasupport(T::Type{<:MetadataDict})
+    (read=true, write=ArrayInterface.can_setindex(fieldtype(T, :metadata)))
+end
 function metadata(mdd::MetadataDict, key; style::Bool=false)
     md = getfield(mdd, :metadata)[key]
     if style
@@ -200,9 +230,9 @@ function emptymetadata!(mdd::MetadataDict)
     empty!(getfield(mdd, :metadata))
     return mdd
 end
+#endregion metadata interface
 
-metadatakeys(mdd::MetadataDict) = keys(getfield(mdd, :metadata))
-function metadatasupport(T::Type{<:MetadataDict})
-    (read=true, write=ArrayInterface.can_setindex(fieldtype(T, :metadata)))
 end
+
+using .MetadataDicts
 

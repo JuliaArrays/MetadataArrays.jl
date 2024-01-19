@@ -1,7 +1,12 @@
 
+struct MetadataUnitRange{T, P, M} <: AbstractUnitRange{T}
+    parent::P
+    metadata::M
+end
+
 const ArrayMetadata{V, P, M, S} = Union{
-    MetadataDict{String, V, P, M, S},
-    MetadataDict{Symbol, V, P, M, S}
+    MetadataDict{String, V, P, M},
+    MetadataDict{Symbol, V, P, M}
 }
 
 """
@@ -105,17 +110,29 @@ function MetadataVector(p::AbstractVector, args...; kwargs...)
     MetadataVector{eltype(p)}(p, args...; kwargs...)
 end
 
-Base.parent(mda::MetadataArray) = getfield(mda, :parent)
+Base.parent(mda::Union{MetadataArray, MetadataUnitRange}) = getfield(mda, :parent)
+function ArrayInterface.parent_type(T::Type{<:MetadataUnitRange{<:Any, <:Any, <:Any}})
+    fieldtype(T, :parent)
+end
 function ArrayInterface.parent_type(T::Type{<:MetadataArray{<:Any, <:Any, <:Any, <:Any}})
     fieldtype(T, :parent)
 end
 
 ArrayInterface.is_forwarding_wrapper(T::Type{<:MetadataArray{<:Any, <:Any, <:Any, <:Any}}) = true
+ArrayInterface.is_forwarding_wrapper(T::Type{<:MetadataUnitRange{<:Any, <:Any, <:Any}}) = true
+
 function ArrayInterface.can_setindex(T::Type{<:MetadataArray{<:Any, <:Any, <:Any, <:Any}})
     can_setindex(fieldtype(T, :parent))
 end
+function ArrayInterface.can_setindex(T::Type{<:MetadataUnitRange{<:Any, <:Any, <:Any}})
+    can_setindex(fieldtype(T, :parent))
+end
+
 # FIXME: this doesn't account for changes in  dim metadata indices properly
 function ArrayInterface.can_change_size(T::Type{<:MetadataArray{<:Any, <:Any, <:Any, <:Any}})
+    can_change_size(fieldtype(T, :parent)) && can_change_size(fieldtype(T, :metadata))
+end
+function ArrayInterface.can_change_size(T::Type{<:MetadataUnitRange{<:Any, <:Any, <:Any}})
     can_change_size(fieldtype(T, :parent)) && can_change_size(fieldtype(T, :metadata))
 end
 

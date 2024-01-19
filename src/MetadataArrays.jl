@@ -1,8 +1,7 @@
 module MetadataArrays
 
 using ArrayInterface
-import ArrayInterface: parent_type, is_forwarding_wrapper, can_setindex,
-    can_change_size
+import ArrayInterface: parent_type, is_forwarding_wrapper, can_setindex, can_change_size
 using Base: BroadcastStyle
 using DataAPI
 import DataAPI: metadata, metadata!, metadatakeys, metadatasupport, deletemetadata!,
@@ -22,19 +21,11 @@ export
 
 const MDType = Union{NamedTuple, AbstractDict{Symbol}, AbstractDict{String}}
 
-struct MetadataStyle{S}
-    style::S
-
-    MetadataStyle(style::S) where {S}= new{S}(style)
-    MetadataStyle() = MetadataStyle(nothing)
-    global const DEFAULT_META_STYLE = MetadataStyle()
-end
-
-
-include("MetadataDict.jl")
+include("MetadataDicts.jl")
 include("types.jl")
 include("array.jl")
 include("metadata.jl")
+include("reduce.jl")
 
 Base.write(io::IO, mda::MetadataArray) = write(io, getfield(mda, :parent))
 function Base.read!(io::IO, mda::MetadataArray)
@@ -50,3 +41,4 @@ include("resizing.jl")
 include("broadcasting.jl")
 
 end # module
+

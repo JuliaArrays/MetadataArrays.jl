@@ -14,7 +14,7 @@ Implementation of arrays with metadata.
 ```julia
 julia> v = ["John", "John", "Jane", "Louise"];
 
-julia> mdv = MetadataArray(v, groups = Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
+julia> mdv = MetadataArray(v, Dict("John" => "Treatment", "Louise" => "Placebo", "Jane" => "Placebo"))
 4-element MetadataVector{String, Vector{String}, NamedTuple{(:groups,), Tuple{Dict{String, String}}}}:
  "John"
  "John"
